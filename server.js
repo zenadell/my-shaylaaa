@@ -90,7 +90,6 @@ const initDb = async () => {
         await db.execute(`INSERT OR IGNORE INTO config (key, value, type) VALUES (?, ?, ?)`, [d.key, d.value, d.type])
     }
 }
-initDb().catch(console.error)
 
 // Seed defaults — ALL text from the 3D scene
 const defaults = [
@@ -161,11 +160,6 @@ const defaults = [
     // Music
     { key: 'bg_music', value: '', type: 'music' },
 ]
-
-const insertStmt = db.prepare(`INSERT OR IGNORE INTO config (key, value, type) VALUES (?, ?, ?)`)
-for (const d of defaults) {
-    insertStmt.run(d.key, d.value, d.type)
-}
 
 // ── File Upload Config & Cloudinary ─────────────────────────────
 const isCloudinary = process.env.CLOUDINARY_CLOUD_NAME ? true : false
@@ -281,3 +275,5 @@ app.listen(PORT, () => {
     console.log(`📋 Admin panel: http://localhost:${PORT}/admin`)
     console.log(`🔌 API: http://localhost:${PORT}/api/config`)
 })
+
+initDb().catch(console.error)
