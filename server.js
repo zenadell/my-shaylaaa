@@ -25,6 +25,11 @@ app.use('/uploads', express.static(path.join(__dirname, 'public', 'uploads')))
 // Serve admin panel
 app.use('/admin', express.static(path.join(__dirname, 'admin')))
 
+// Redirect root to admin
+app.get('/', (req, res) => {
+    res.redirect('/admin')
+})
+
 // ── Database Setup ──────────────────────────────────────────────
 const isTurso = process.env.TURSO_DATABASE_URL ? true : false
 let db;
