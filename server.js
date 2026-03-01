@@ -1,16 +1,21 @@
 import express from 'express'
 import cors from 'cors'
 import Database from 'better-sqlite3'
+import { createClient } from '@libsql/client'
 import multer from 'multer'
+import { v2 as cloudinary } from 'cloudinary'
 import path from 'path'
 import fs from 'fs'
 import { fileURLToPath } from 'url'
+import dotenv from 'dotenv'
+
+dotenv.config()
 
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = path.dirname(__filename)
 
 const app = express()
-const PORT = 3001
+const PORT = process.env.PORT || 3001
 
 // Middleware
 app.use(cors())
@@ -21,33 +26,71 @@ app.use('/uploads', express.static(path.join(__dirname, 'public', 'uploads')))
 app.use('/admin', express.static(path.join(__dirname, 'admin')))
 
 // ── Database Setup ──────────────────────────────────────────────
-const dbPath = path.join(__dirname, 'data', 'admin.db')
-fs.mkdirSync(path.dirname(dbPath), { recursive: true })
-const db = new Database(dbPath)
+const isTurso = process.env.TURSO_DATABASE_URL ? true : false
+let db;
 
-// Create config table
-db.exec(`
-  CREATE TABLE IF NOT EXISTS config (
-    key TEXT PRIMARY KEY,
-    value TEXT NOT NULL,
-    type TEXT NOT NULL DEFAULT 'text'
-  )
-`)
+if (isTurso) {
+    console.log("☁️ Using Turso Cloud Database")
+    db = createClient({
+        url: process.env.TURSO_DATABASE_URL,
+        authToken: process.env.TURSO_AUTH_TOKEN,
+    })
+} else {
+    console.log("📂 Using Local SQLite Database")
+    const dbPath = path.join(__dirname, 'data', 'admin.db')
+    fs.mkdirSync(path.dirname(dbPath), { recursive: true })
+    const localDb = new Database(dbPath)
+    // Wrapper to match Turso's execute signature for basic queries
+    db = {
+        execute: async (sql, args = []) => {
+            const stmt = localDb.prepare(sql)
+            // Determine if it's a mutation or selection
+            const isSelect = sql.trim().toUpperCase().startsWith('SELECT')
+            if (isSelect) {
+                return { rows: stmt.all(...args) }
+            } else {
+                return stmt.run(...args)
+            }
+        },
+        batch: async (stmts) => {
+            const transaction = localDb.transaction((list) => {
+                for (const s of list) localDb.prepare(s.sql).run(...s.args || [])
+            })
+            transaction(stmts)
+        }
+    }
+}
 
-// Create visits table
-db.exec(`
-  CREATE TABLE IF NOT EXISTS visits (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    timestamp DATETIME DEFAULT CURRENT_TIMESTAMP,
-    ua TEXT,
-    screen TEXT,
-    city TEXT,
-    country TEXT,
-    ip TEXT,
-    lat REAL,
-    lon REAL
-  )
-`)
+// Initialization helper
+const initDb = async () => {
+    await db.execute(`
+      CREATE TABLE IF NOT EXISTS config (
+        key TEXT PRIMARY KEY,
+        value TEXT NOT NULL,
+        type TEXT NOT NULL DEFAULT 'text'
+      )
+    `)
+
+    await db.execute(`
+      CREATE TABLE IF NOT EXISTS visits (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        timestamp DATETIME DEFAULT CURRENT_TIMESTAMP,
+        ua TEXT,
+        screen TEXT,
+        city TEXT,
+        country TEXT,
+        ip TEXT,
+        lat REAL,
+        lon REAL
+      )
+    `)
+
+    // Seed defaults
+    for (const d of defaults) {
+        await db.execute(`INSERT OR IGNORE INTO config (key, value, type) VALUES (?, ?, ?)`, [d.key, d.value, d.type])
+    }
+}
+initDb().catch(console.error)
 
 // Seed defaults — ALL text from the 3D scene
 const defaults = [
@@ -124,7 +167,17 @@ for (const d of defaults) {
     insertStmt.run(d.key, d.value, d.type)
 }
 
-// ── File Upload Config ──────────────────────────────────────────
+// ── File Upload Config & Cloudinary ─────────────────────────────
+const isCloudinary = process.env.CLOUDINARY_CLOUD_NAME ? true : false
+
+if (isCloudinary) {
+    cloudinary.config({
+        cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
+        api_key: process.env.CLOUDINARY_API_KEY,
+        api_secret: process.env.CLOUDINARY_API_SECRET
+    })
+}
+
 const uploadsDir = path.join(__dirname, 'public', 'uploads')
 fs.mkdirSync(uploadsDir, { recursive: true })
 
@@ -141,52 +194,85 @@ const upload = multer({ storage, limits: { fileSize: 20 * 1024 * 1024 } }) // 20
 // ── API Routes ──────────────────────────────────────────────────
 
 // Get all config
-app.get('/api/config', (req, res) => {
-    const rows = db.prepare('SELECT * FROM config').all()
-    const config = {}
-    for (const row of rows) {
-        config[row.key] = { value: row.value, type: row.type }
+app.get('/api/config', async (req, res) => {
+    try {
+        const result = await db.execute('SELECT * FROM config')
+        const config = {}
+        for (const row of result.rows) {
+            config[row.key] = { value: row.value, type: row.type }
+        }
+        res.json(config)
+    } catch (e) {
+        res.status(500).json({ error: e.message })
     }
-    res.json(config)
 })
 
 // Update a text config
-app.post('/api/config', (req, res) => {
+app.post('/api/config', async (req, res) => {
     const { key, value } = req.body
     if (!key || value === undefined) {
         return res.status(400).json({ error: 'key and value required' })
     }
-    db.prepare('UPDATE config SET value = ? WHERE key = ?').run(value, key)
-    res.json({ success: true, key, value })
+    try {
+        await db.execute('UPDATE config SET value = ? WHERE key = ?', [value, key])
+        res.json({ success: true, key, value })
+    } catch (e) {
+        res.status(500).json({ error: e.message })
+    }
 })
 
 // Upload a file (image or music)
-app.post('/api/upload', upload.single('file'), (req, res) => {
+app.post('/api/upload', upload.single('file'), async (req, res) => {
     if (!req.file || !req.body.key) {
         return res.status(400).json({ error: 'file and key required' })
     }
-    const relativePath = `/uploads/${req.file.filename}`
-    db.prepare('UPDATE config SET value = ? WHERE key = ?').run(relativePath, req.body.key)
-    res.json({ success: true, key: req.body.key, path: relativePath })
+
+    try {
+        let finalPath;
+        if (isCloudinary) {
+            // Upload to Cloudinary
+            const result = await cloudinary.uploader.upload(req.file.path, {
+                resource_type: "auto",
+                folder: "3d-portfolio"
+            })
+            finalPath = result.secure_url
+            // Delete local temp file
+            fs.unlinkSync(req.file.path)
+        } else {
+            finalPath = `/uploads/${req.file.filename}`
+        }
+
+        await db.execute('UPDATE config SET value = ? WHERE key = ?', [finalPath, req.body.key])
+        res.json({ success: true, key: req.body.key, path: finalPath })
+    } catch (e) {
+        res.status(500).json({ error: e.message })
+    }
 })
 
 // ── Visitor Tracking ──────────────────────────────────────────
 
 // Log a visit
-app.post('/api/visit', (req, res) => {
+app.post('/api/visit', async (req, res) => {
     const { ua, screen, city, country, ip, lat, lon } = req.body
-    const stmt = db.prepare(`
-        INSERT INTO visits (ua, screen, city, country, ip, lat, lon)
-        VALUES (?, ?, ?, ?, ?, ?, ?)
-    `)
-    stmt.run(ua || '', screen || '', city || 'Unknown', country || 'Unknown', ip || '', lat || 0, lon || 0)
-    res.json({ success: true })
+    try {
+        await db.execute(`
+            INSERT INTO visits (ua, screen, city, country, ip, lat, lon)
+            VALUES (?, ?, ?, ?, ?, ?, ?)
+        `, [ua || '', screen || '', city || 'Unknown', country || 'Unknown', ip || '', lat || 0, lon || 0])
+        res.json({ success: true })
+    } catch (e) {
+        res.status(500).json({ error: e.message })
+    }
 })
 
 // Get all visits
-app.get('/api/visits', (req, res) => {
-    const rows = db.prepare('SELECT * FROM visits ORDER BY timestamp DESC').all()
-    res.json(rows)
+app.get('/api/visits', async (req, res) => {
+    try {
+        const result = await db.execute('SELECT * FROM visits ORDER BY timestamp DESC')
+        res.json(result.rows)
+    } catch (e) {
+        res.status(500).json({ error: e.message })
+    }
 })
 
 // ── Start Server ────────────────────────────────────────────────

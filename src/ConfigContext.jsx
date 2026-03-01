@@ -2,7 +2,7 @@ import React, { createContext, useContext, useState, useEffect, useRef, useCallb
 
 const ConfigContext = createContext({})
 
-const API_URL = 'http://localhost:3001'
+const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001'
 const POLL_INTERVAL = 2000
 
 const DEFAULTS = {
