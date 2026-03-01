@@ -1,0 +1,70 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Admin Panel — Birthday Scene</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="style.css">
+</head>
+
+<body>
+    <div class="app">
+        <header>
+            <div class="logo">🎂 Birthday Admin</div>
+            <div class="status" id="status">Loading...</div>
+        </header>
+
+        <main>
+            <!-- Pictures Section -->
+            <section class="card">
+                <h2>🖼️ Pictures</h2>
+                <p class="subtitle">Replace the images displayed on the walls, mugs, and vinyl covers</p>
+                <div class="grid" id="pictures-grid"></div>
+            </section>
+
+            <!-- Texts Section -->
+            <section class="card">
+                <h2>✏️ Texts</h2>
+                <p class="subtitle">Edit the messages shown in the 3D scene</p>
+                <div class="texts-list" id="texts-list"></div>
+            </section>
+
+            <!-- Visitors Section -->
+            <section class="card">
+                <h2>📍 Visitors Log</h2>
+                <p class="subtitle">Real-time visitor tracking and geolocation</p>
+                <div class="visitors-list" id="visitors-list">
+                    <table class="visitor-table">
+                        <thead>
+                            <tr>
+                                <th>Time</th>
+                                <th>Location</th>
+                                <th>Screen</th>
+                                <th>IP</th>
+                            </tr>
+                        </thead>
+                        <tbody id="visitor-tbody">
+                            <!-- Populated by script.js -->
+                        </tbody>
+                    </table>
+                </div>
+            </section>
+
+            <!-- Music Section -->
+            <section class="card">
+                <h2>🎵 Background Music</h2>
+                <p class="subtitle">Upload an MP3 file to play as background music</p>
+                <div class="music-section" id="music-section"></div>
+            </section>
+        </main>
+    </div>
+
+    <div class="toast" id="toast"></div>
+
+    <script src="script.js"></script>
+</body>
+
+</html>
