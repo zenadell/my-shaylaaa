@@ -1,4 +1,4 @@
-const API = 'http://localhost:3001'
+const API = '' // Use same origin for production
 let config = {}
 
 const PIC_LABELS = {
