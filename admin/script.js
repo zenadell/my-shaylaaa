@@ -117,7 +117,7 @@ function renderPictures() {
                 <small>Change</small>
             </div>
             <div class="pic-label">${PIC_LABELS[key]}</div>
-            <input type="file" id="file-${key}" accept="image/*" onchange="uploadFile('${key}')">
+            <input type="file" id="file-${key}" accept="image/jpeg, image/png, image/webp, image/jpg" onchange="uploadFile('${key}')">
         `
         slot.onclick = () => document.getElementById(`file-${key}`).click()
         grid.appendChild(slot)
