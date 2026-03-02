@@ -104,12 +104,14 @@ export function autoSize(text, baseFontSize, idealChars = 10) {
 
 export function resolveImagePath(val) {
     if (!val) return ''
+    if (val.startsWith('http')) return val
     if (val.startsWith('/uploads/')) return API_URL + val
     return val
 }
 
 export function resolveMusicPath(val) {
     if (!val) return ''
+    if (val.startsWith('http')) return val
     if (val.startsWith('/uploads/')) return API_URL + val
     return val
 }
