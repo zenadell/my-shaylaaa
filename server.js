@@ -20,6 +20,7 @@ const PORT = process.env.PORT || 3001
 // Middleware
 app.use(cors())
 app.use(express.json())
+app.use(express.static(path.join(__dirname, 'public')))
 app.use('/uploads', express.static(path.join(__dirname, 'public', 'uploads')))
 
 // Serve admin panel
@@ -244,6 +245,7 @@ app.post('/api/upload', upload.single('file'), async (req, res) => {
         await db.execute('UPDATE config SET value = ? WHERE key = ?', [finalPath, req.body.key])
         res.json({ success: true, key: req.body.key, path: finalPath })
     } catch (e) {
+        console.error('❌ Cloudinary Upload Error Detail:', e)
         res.status(500).json({ error: e.message })
     }
 })
