@@ -111,7 +111,7 @@ function renderPictures() {
         const slot = document.createElement('div')
         slot.className = 'pic-slot'
         slot.innerHTML = `
-            <img src="${val.startsWith('.') ? '..' + val.slice(1) : val}" alt="${PIC_LABELS[key]}">
+            <img src="${val.startsWith('http') ? val : (val.startsWith('.') ? '..' + val.slice(1) : val)}" alt="${PIC_LABELS[key]}">
             <div class="overlay">
                 <span>📤</span>
                 <small>Change</small>
@@ -232,7 +232,8 @@ async function uploadFile(key) {
         if (key === 'bg_music') renderMusic()
         else renderPictures()
     } catch (e) {
-        showToast('Upload failed', true)
+        console.error('Upload error:', e)
+        showToast(`Upload failed: ${e.message}`, true)
     }
 }
 
