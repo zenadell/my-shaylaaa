@@ -168,14 +168,19 @@ const defaults = [
 ]
 
 // ── File Upload Config & Cloudinary ─────────────────────────────
-const isCloudinary = process.env.CLOUDINARY_CLOUD_NAME ? true : false
+const isCloudinary = (process.env.CLOUDINARY_CLOUD_NAME || process.env.CLOUDINARY_URL) ? true : false
 
 if (isCloudinary) {
-    cloudinary.config({
-        cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
-        api_key: process.env.CLOUDINARY_API_KEY,
-        api_secret: process.env.CLOUDINARY_API_SECRET
-    })
+    if (process.env.CLOUDINARY_URL) {
+        cloudinary.config({ url: process.env.CLOUDINARY_URL })
+    } else {
+        cloudinary.config({
+            cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
+            api_key: process.env.CLOUDINARY_API_KEY,
+            api_secret: process.env.CLOUDINARY_API_SECRET
+        })
+    }
+    console.log("☁️ Cloudinary Storage Connected")
 }
 
 const uploadsDir = path.join(__dirname, 'public', 'uploads')
@@ -233,7 +238,7 @@ app.post('/api/upload', upload.single('file'), async (req, res) => {
             // Upload to Cloudinary
             const result = await cloudinary.uploader.upload(req.file.path, {
                 resource_type: "auto",
-                folder: "3d-portfolio"
+                folder: "3d_portfolio"
             })
             finalPath = result.secure_url
             // Delete local temp file
